@@ -13,9 +13,43 @@
         <div id="output-wrap">
             <div id="output"><span class="caret"></span></div>
             <div id="path-bar">&nbsp;</div>
+            <div id="tuning">
+                <span>フリック判定距離</span
+                ><input type="range" id="th" min="14" max="60" value="26" /><span
+                    class="val"
+                    id="th-val"
+                    >26px</span
+                >
+                <span>キャンセル距離</span
+                ><input type="range" id="cr" min="35" max="120" value="48" /><span
+                    class="val"
+                    id="cr-val"
+                    >48px</span
+                >
+            </div>
         </div>
         <div id="keyboard">
-            <div id="kb-grid"></div>
+            <div id="kb-grid">
+                <div class="key util disabled">&rarr;</div>
+                <div class="key" data-row="a">あ</div>
+                <div class="key" data-row="ka">か</div>
+                <div class="key" data-row="sa">さ</div>
+                <div class="key util" data-action="bs">&#9003;</div>
+                <div class="key util disabled">&#8634;</div>
+                <div class="key" data-row="ta">た</div>
+                <div class="key" data-row="na">な</div>
+                <div class="key" data-row="ha">は</div>
+                <div class="key util" data-action="space">空白</div>
+                <div class="key util disabled">ABC</div>
+                <div class="key" data-row="ma">ま</div>
+                <div class="key" data-row="ya">や</div>
+                <div class="key" data-row="ra">ら</div>
+                <div class="key util tall" data-action="enter">改行</div>
+                <div class="key util disabled">&#9786;</div>
+                <div class="key" data-row="space">␣</div>
+                <div class="key" data-row="wa">わ</div>
+                <div class="key" data-row="pn">、。?!</div>
+            </div>
         </div>
         <div id="popup"></div>
         <script type="module" src="./main.ts"></script>

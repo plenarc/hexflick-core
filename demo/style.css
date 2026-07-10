@@ -1,1 +1,178 @@
-/* Ported from docs/hexflick-prototype.html. Pending migration. */
+/* Ported from docs/hexflick-prototype.html. */
+:root {
+    --kb-bg: #d1d4d9;
+    --key-bg: #fff;
+    --key-fg: #1c1c1e;
+    --util-bg: #b4bac2;
+    --accent: #2f6fed;
+    --popup-bg: #f4f5f7;
+    --popup-line: #c8ccd4;
+    --radius: 8px;
+}
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+html,
+body {
+    height: 100%;
+    font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+    background: #f2f2f6;
+    overscroll-behavior: none;
+}
+body {
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+}
+#output-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    gap: 8px;
+    min-height: 0;
+}
+#output {
+    flex: 1;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: var(--radius);
+    padding: 12px;
+    font-size: 20px;
+    line-height: 1.6;
+    overflow-y: auto;
+    word-break: break-all;
+    white-space: pre-wrap;
+    min-height: 72px;
+}
+#output .caret {
+    display: inline-block;
+    width: 2px;
+    height: 1.2em;
+    background: var(--accent);
+    vertical-align: text-bottom;
+    animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+    50% {
+        opacity: 0;
+    }
+}
+#path-bar {
+    font-size: 13px;
+    color: #555;
+    min-height: 1.4em;
+}
+#tuning {
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #444;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 4px 8px;
+    align-items: center;
+}
+#tuning input[type="range"] {
+    width: 100%;
+}
+#tuning .val {
+    width: 4.5em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+#keyboard {
+    background: var(--kb-bg);
+    padding: 8px 6px calc(10px + env(safe-area-inset-bottom));
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+#kb-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr 1.4fr 1.4fr 1fr;
+    grid-template-rows: repeat(4, 52px);
+    gap: 6px;
+}
+.key {
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 21px;
+    background: var(--key-bg);
+    color: var(--key-fg);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+    cursor: pointer;
+}
+.key.util {
+    background: var(--util-bg);
+    font-size: 15px;
+}
+.key.disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.key.pressed {
+    background: #e4e9f5;
+}
+.key.tall {
+    grid-row: span 2;
+}
+
+#popup {
+    position: fixed;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+}
+/* Flat-top regular hexagon: every cell is the same size, tiling with no gaps. */
+.pcell {
+    position: absolute;
+    width: 62px;
+    height: 53.7px;
+    margin-left: -31px;
+    margin-top: -26.85px;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    background: var(--popup-bg);
+    color: #1c1c1e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    box-shadow: 0 0 0 1px var(--popup-line) inset;
+}
+.pcell.two {
+    font-size: 13px;
+}
+.pcell.hint {
+    color: #9aa0aa;
+    background: #e9ebef;
+    font-size: 15px;
+}
+.pcell.shifton {
+    color: var(--accent);
+    background: #dfe7fb;
+    font-size: 15px;
+    box-shadow: 0 0 0 1px var(--accent) inset;
+}
+.pcell.sel {
+    background: var(--accent);
+    color: #fff;
+    z-index: 3;
+    box-shadow: 0 0 0 1px var(--accent) inset;
+}
+#popup.cancel .pcell {
+    opacity: 0.4;
+}
+#popup.cancel .pcell.sel {
+    background: #8a93a3;
+    box-shadow: 0 0 0 1px #8a93a3 inset;
+}
