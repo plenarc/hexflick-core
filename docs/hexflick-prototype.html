@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>6方向フリック入力 プロトタイプ</title>
+    <style>
+      :root {
+        --kb-bg: #d1d4d9;
+        --key-bg: #fff;
+        --key-fg: #1c1c1e;
+        --util-bg: #b4bac2;
+        --accent: #2f6fed;
+        --popup-bg: #f4f5f7;
+        --popup-line: #c8ccd4;
+        --radius: 8px;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+        background: #f2f2f6;
+        overscroll-behavior: none;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        max-width: 480px;
+        margin: 0 auto;
+      }
+      #output-wrap {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 12px;
+        gap: 8px;
+        min-height: 0;
+      }
+      #output {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: var(--radius);
+        padding: 12px;
+        font-size: 20px;
+        line-height: 1.6;
+        overflow-y: auto;
+        word-break: break-all;
+        white-space: pre-wrap;
+        min-height: 72px;
+      }
+      #output .caret {
+        display: inline-block;
+        width: 2px;
+        height: 1.2em;
+        background: var(--accent);
+        vertical-align: text-bottom;
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      #path-bar {
+        font-size: 13px;
+        color: #555;
+        min-height: 1.4em;
+      }
+      #tuning {
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: var(--radius);
+        padding: 8px 12px;
+        font-size: 12px;
+        color: #444;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 4px 8px;
+        align-items: center;
+      }
+      #tuning input[type="range"] {
+        width: 100%;
+      }
+      #tuning .val {
+        width: 4.5em;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      #keyboard {
+        background: var(--kb-bg);
+        padding: 8px 6px calc(10px + env(safe-area-inset-bottom));
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #kb-grid {
+        display: grid;
+        grid-template-columns: 1fr 1.4fr 1.4fr 1.4fr 1fr;
+        grid-template-rows: repeat(4, 52px);
+        gap: 6px;
+      }
+      .key {
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 21px;
+        background: var(--key-bg);
+        color: var(--key-fg);
+        box-shadow: 0 1px 0 rgba(0, 0, 0, 0.25);
+        cursor: pointer;
+      }
+      .key.util {
+        background: var(--util-bg);
+        font-size: 15px;
+      }
+      .key.disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .key.pressed {
+        background: #e4e9f5;
+      }
+      .key.tall {
+        grid-row: span 2;
+      }
+
+      #popup {
+        position: fixed;
+        left: 0;
+        top: 0;
+        pointer-events: none;
+        z-index: 100;
+        display: none;
+      }
+      /* フラットトップ正六角形: 全セル同一サイズで隙間なく接する */
+      .pcell {
+        position: absolute;
+        width: 62px;
+        height: 53.7px;
+        margin-left: -31px;
+        margin-top: -26.85px;
+        clip-path: polygon(
+          25% 0%,
+          75% 0%,
+          100% 50%,
+          75% 100%,
+          25% 100%,
+          0% 50%
+        );
+        background: var(--popup-bg);
+        color: #1c1c1e;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+        box-shadow: 0 0 0 1px var(--popup-line) inset;
+      }
+      .pcell.two {
+        font-size: 13px;
+      }
+      .pcell.hint {
+        color: #9aa0aa;
+        background: #e9ebef;
+        font-size: 15px;
+      }
+      .pcell.shifton {
+        color: var(--accent);
+        background: #dfe7fb;
+        font-size: 15px;
+        box-shadow: 0 0 0 1px var(--accent) inset;
+      }
+      .pcell.sel {
+        background: var(--accent);
+        color: #fff;
+        z-index: 3;
+        box-shadow: 0 0 0 1px var(--accent) inset;
+      }
+      #popup.cancel .pcell {
+        opacity: 0.4;
+      }
+      #popup.cancel .pcell.sel {
+        background: #8a93a3;
+        box-shadow: 0 0 0 1px #8a93a3 inset;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="output-wrap">
+      <div id="output"><span class="caret"></span></div>
+      <div id="path-bar">&nbsp;</div>
+      <div id="tuning">
+        <span>フリック判定距離</span
+        ><input type="range" id="th" min="14" max="60" value="26" /><span
+          class="val"
+          id="th-val"
+          >26px</span
+        >
+        <span>キャンセル距離</span
+        ><input type="range" id="cr" min="35" max="120" value="48" /><span
+          class="val"
+          id="cr-val"
+          >48px</span
+        >
+      </div>
+    </div>
+    <div id="keyboard">
+      <div id="kb-grid">
+        <div class="key util disabled">→</div>
+        <div class="key" data-row="a">あ</div>
+        <div class="key" data-row="ka">か</div>
+        <div class="key" data-row="sa">さ</div>
+        <div class="key util" data-action="bs">⌫</div>
+        <div class="key util disabled">↺</div>
+        <div class="key" data-row="ta">た</div>
+        <div class="key" data-row="na">な</div>
+        <div class="key" data-row="ha">は</div>
+        <div class="key util" data-action="space">空白</div>
+        <div class="key util disabled">ABC</div>
+        <div class="key" data-row="ma">ま</div>
+        <div class="key" data-row="ya">や</div>
+        <div class="key" data-row="ra">ら</div>
+        <div class="key util tall" data-action="enter">改行</div>
+        <div class="key util disabled">☺</div>
+        <div class="key" data-row="space">␣</div>
+        <div class="key" data-row="wa">わ</div>
+        <div class="key" data-row="pn">、。?!</div>
+      </div>
+    </div>
+    <div id="popup"></div>
+
+    <script>
+      "use strict";
+
+      /* ===== 文字テーブル =====
+       * 行: { base, daku?, handaku?, small? } 上下フリックで層を切替(その場でラベル貼替)
+       * 層: { c:中心, u/d/ul/dl/ur/dr: エントリ }
+       *   エントリ: "文字" | {c,sub:{方向:文字}} | {shift:'daku'|'handaku'|'small'}(baseのみ)
+       */
+      const SH = (s) => ({ shift: s });
+      const Y = (c, ya, yu, yo) => ({ c, sub: { dl: ya, ul: yu, u: yo } }); // 拗音: 左下/左上/上(反時計回りに配置)
+
+      const ROWS = {
+        a: {
+          base: {
+            c: "あ",
+            ul: "い",
+            dl: {
+              c: "う",
+              sub: {
+                ul: "ヴァ",
+                dl: { c: "うぃ", sub: { d: "ヴィ" } },
+                d: { c: "うぇ", sub: { d: "ヴェ" } },
+                dr: { c: "うぉ", sub: { d: "ヴォ" } },
+              },
+            },
+            ur: "え",
+            dr: "お",
+            u: SH("small"),
+            d: SH("small"),
+          },
+          small: { c: "ぁ", ul: "ぃ", dl: "ぅ", ur: "ぇ", dr: "ぉ" },
+        },
+        ka: {
+          base: {
+            c: "か",
+            ul: Y("き", "きゃ", "きゅ", "きょ"),
+            dl: "く",
+            ur: "け",
+            dr: "こ",
+            u: SH("daku"),
+            d: SH("daku"),
+          },
+          daku: {
+            c: "が",
+            ul: Y("ぎ", "ぎゃ", "ぎゅ", "ぎょ"),
+            dl: "ぐ",
+            ur: "げ",
+            dr: "ご",
+          },
+        },
+        sa: {
+          base: {
+            c: "さ",
+            ul: Y("し", "しゃ", "しゅ", "しょ"),
+            dl: "す",
+            ur: "せ",
+            dr: "そ",
+            u: SH("daku"),
+            d: SH("daku"),
+          },
+          daku: {
+            c: "ざ",
+            ul: Y("じ", "じゃ", "じゅ", "じょ"),
+            dl: "ず",
+            ur: "ぜ",
+            dr: "ぞ",
+          },
+        },
+        ta: {
+          base: {
+            c: "た",
+            ul: Y("ち", "ちゃ", "ちゅ", "ちょ"),
+            dl: { c: "つ", sub: { dl: "つぁ", d: "っ" } },
+            ur: { c: "て", sub: { u: "てぃ" } },
+            dr: { c: "と", sub: { ur: "とぅ" } },
+            u: SH("daku"),
+            d: SH("daku"),
+          },
+          daku: {
+            c: "だ",
+            ul: Y("ぢ", "ぢゃ", "ぢゅ", "ぢょ"),
+            dl: { c: "づ", sub: { dl: "ヅァ" } },
+            ur: { c: "で", sub: { u: "でぃ" } },
+            dr: { c: "ど", sub: { ur: "どぅ" } },
+          },
+        },
+        na: {
+          base: {
+            c: "な",
+            ul: Y("に", "にゃ", "にゅ", "にょ"),
+            dl: "ぬ",
+            ur: "ね",
+            dr: "の",
+          },
+        },
+        ha: {
+          base: {
+            c: "は",
+            ul: Y("ひ", "ひゃ", "ひゅ", "ひょ"),
+            dl: {
+              c: "ふ",
+              sub: { ul: "ふぁ", dl: "ふぃ", d: "ふぇ", dr: "ふぉ" },
+            },
+            ur: "へ",
+            dr: "ほ",
+            u: SH("daku"),
+            d: SH("handaku"),
+          },
+          daku: {
+            c: "ば",
+            ul: Y("び", "びゃ", "びゅ", "びょ"),
+            dl: {
+              c: "ぶ",
+              sub: { ul: "ぶぁ", dl: "ぶぃ", d: "ぶぇ", dr: "ぶぉ" },
+            },
+            ur: "べ",
+            dr: "ぼ",
+          },
+          handaku: {
+            c: "ぱ",
+            ul: Y("ぴ", "ぴゃ", "ぴゅ", "ぴょ"),
+            dl: {
+              c: "ぷ",
+              sub: { ul: "ぷぁ", dl: "ぷぃ", d: "ぷぇ", dr: "ぷぉ" },
+            },
+            ur: "ぺ",
+            dr: "ぽ",
+          },
+        },
+        ma: {
+          base: {
+            c: "ま",
+            ul: Y("み", "みゃ", "みゅ", "みょ"),
+            dl: "む",
+            ur: "め",
+            dr: "も",
+          },
+        },
+        ya: {
+          base: {
+            c: "や",
+            ul: { c: "(", sub: { dl: "「", ul: "<", u: "『" } },
+            dl: "ゆ",
+            ur: { c: ")", sub: { dr: "」", ur: ">", u: "』" } },
+            dr: "よ",
+            d: SH("small"),
+          },
+          small: { c: "ゃ", dl: "ゅ", dr: "ょ" },
+        },
+        ra: {
+          base: {
+            c: "ら",
+            ul: Y("り", "りゃ", "りゅ", "りょ"),
+            dl: "る",
+            ur: "れ",
+            dr: "ろ",
+          },
+        },
+        wa: {
+          base: {
+            c: "わ",
+            u: "ん",
+            ul: "を",
+            ur: { c: "－", sub: { u: "-" } },
+          },
+        },
+        pn: {
+          base: {
+            c: "、",
+            ul: "。",
+            u: { c: "？", sub: { u: "?" } },
+            ur: { c: "！", sub: { u: "!" } },
+          },
+        },
+        space: {
+          base: {
+            c: "　",
+            lab: "␣",
+            u: { c: " ", lab: "␣" },
+            ul: { c: "゛", sub: { u: "゜" } },
+            ur: { c: "・", sub: { u: "･" } },
+          },
+        },
+      };
+
+      /* ===== 出力 ===== */
+      const outEl = document.getElementById("output"),
+        pathBar = document.getElementById("path-bar");
+      let text = "";
+      function render() {
+        outEl.textContent = text;
+        const c = document.createElement("span");
+        c.className = "caret";
+        outEl.appendChild(c);
+        outEl.scrollTop = outEl.scrollHeight;
+      }
+      function commit(ch) {
+        text += ch;
+        render();
+      }
+      function backspace() {
+        text = Array.from(text).slice(0, -1).join("");
+        render();
+      }
+      render();
+
+      /* ===== 調整 ===== */
+      let TH = 26,
+        CANCEL = 48;
+      const thEl = document.getElementById("th"),
+        crEl = document.getElementById("cr");
+      thEl.oninput = () => {
+        TH = +thEl.value;
+        document.getElementById("th-val").textContent = TH + "px";
+      };
+      crEl.oninput = () => {
+        CANCEL = +crEl.value;
+        document.getElementById("cr-val").textContent = CANCEL + "px";
+      };
+
+      /* ===== 六角形の隣接オフセット(フラットトップ, 全隣接が等距離で辺を共有) ===== */
+      const HR = 31,
+        H = HR * Math.sqrt(3),
+        HX = HR * 1.5,
+        HY = H / 2;
+      const OFF = {
+        u: [0, -H],
+        d: [0, H],
+        ul: [-HX, -HY],
+        ur: [HX, -HY],
+        dl: [-HX, HY],
+        dr: [HX, HY],
+      };
+      const DIRS = ["u", "d", "ul", "ur", "dl", "dr"];
+      function pos(cx, cy, dir) {
+        return { x: cx + OFF[dir][0], y: cy + OFF[dir][1] };
+      }
+
+      /* 最初のシフト判定にだけ使う角度ゾーン */
+      function zoneOf(dx, dy, th) {
+        if (Math.hypot(dx, dy) < th) return "c";
+        const d = (Math.atan2(-dy, dx) * 180) / Math.PI;
+        if (d >= 60 && d < 120) return "u";
+        if (d >= 120 && d <= 180) return "ul";
+        if (d >= 0 && d < 60) return "ur";
+        if (d >= -120 && d < -60) return "d";
+        if (d >= -180 && d < -120) return "dl";
+        return "dr";
+      }
+      const isShift = (e) => e && typeof e === "object" && e.shift;
+      const echar = (e) => (typeof e === "string" ? e : e.c);
+      const elabel = (e) =>
+        e && typeof e === "object" && e.lab ? e.lab : echar(e);
+      const HINT = { daku: "゛", handaku: "゜", small: "小" };
+
+      /* ===== 選択解決(六角格子・訪問制約・機能シフトHEX) =====
+       * ルール:
+       *  - すべてのセルは六角格子上の絶対位置を持ち、指に最近傍のセルが選択される
+       *  - sub(拗音・外来音)は「親セルを一度選択(訪問)した後」しか出現も選択もされない
+       *  - シフトHEX(中心の上下)は常設。ドリル中に踏むと層が切替わり(再シフト)、
+       *    その瞬間の選択は「今のルート文字のシフト後の姿」(例: し→じ)
+       *  - 選択セルから CANCEL 以上離れたら(=どのセルにも乗っていない)キャンセル
+       */
+      const subOf = (e) => (e && typeof e === "object" && e.sub ? e.sub : null);
+      const layerOf = (st) => (st.shift ? st.row[st.shift] : st.row.base);
+
+      function curRoot(st) {
+        const layer = layerOf(st);
+        if (st.rootDir) {
+          const e = layer[st.rootDir];
+          if (e && !isShift(e)) return echar(e);
+        }
+        return layer.c;
+      }
+      function buildCells(st) {
+        const layer = layerOf(st),
+          base = st.row.base,
+          cells = [];
+        cells.push({
+          key: "c",
+          ch: layer.c,
+          lab: layer.lab || layer.c,
+          x: st.cx,
+          y: st.cy,
+          kind: "center",
+        });
+        for (const dir of DIRS) {
+          const e = layer[dir];
+          if (e && !isShift(e)) {
+            const p = pos(st.cx, st.cy, dir);
+            cells.push({
+              key: dir,
+              ch: echar(e),
+              lab: elabel(e),
+              x: p.x,
+              y: p.y,
+              kind: "base",
+              dir,
+              entry: e,
+            });
+          }
+        }
+        // シフトHEX(常設・トグル。ラベルは目印。乗ったときだけ結果文字をcomputeで差し替え)
+        for (const dir of ["u", "d"]) {
+          const e = base[dir];
+          if (isShift(e)) {
+            const p = pos(st.cx, st.cy, dir);
+            cells.push({
+              key: "sh:" + dir,
+              x: p.x,
+              y: p.y,
+              kind: "shift",
+              dir,
+              shiftType: e.shift,
+              ch: HINT[e.shift],
+              lab: HINT[e.shift],
+            });
+          }
+        }
+        // bloom: ルートのsub木。「訪問済みノードの子」だけを展開
+        if (st.rootDir) {
+          const root = cells.find((c) => c.key === st.rootDir);
+          if (root && subOf(root.entry)) {
+            const stack = [root];
+            while (stack.length) {
+              const parent = stack.pop();
+              const sm = subOf(parent.entry);
+              if (!sm || !st.visited.has(parent.key)) continue;
+              for (const sd in sm) {
+                const e = sm[sd],
+                  p = pos(parent.x, parent.y, sd),
+                  key = parent.key + "." + sd;
+                const c = {
+                  key,
+                  ch: echar(e),
+                  lab: elabel(e),
+                  x: p.x,
+                  y: p.y,
+                  kind: "sub",
+                  entry: e,
+                  parent: parent.key,
+                };
+                cells.push(c);
+                stack.push(c);
+              }
+            }
+          }
+        }
+        // 同一座標の重複はbloom優先(例: ふぉ がシフトHEX位置に重なる)
+        const seen = {},
+          out = [];
+        for (const c of cells) {
+          const k = Math.round(c.x) + "," + Math.round(c.y);
+          if (seen[k] != null) {
+            if (c.kind !== "shift" && c.kind !== "center") out[seen[k]] = c;
+            continue;
+          }
+          seen[k] = out.length;
+          out.push(c);
+        }
+        return out;
+      }
+      function compute(st, x, y) {
+        let cells = buildCells(st);
+        // 中心デッドゾーン
+        if (Math.hypot(x - st.cx, y - st.cy) < TH) {
+          const c = cells.find((c) => c.kind === "center");
+          if (c) {
+            st.lastSel = c.key;
+            return { char: c.ch, cells, selCell: c, cancel: false };
+          }
+        }
+        // 最近傍セル
+        let best = null,
+          bd = Infinity;
+        for (const c of cells) {
+          const d = Math.hypot(x - c.x, y - c.y);
+          if (d < bd) {
+            bd = d;
+            best = c;
+          }
+        }
+        if (best.kind === "shift") {
+          // トグル: HEXに「新たに乗った瞬間」だけ base⇄シフト を切替(乗りっぱなしでは再切替しない)
+          if (st.lastSel !== best.key) {
+            st.shift = st.shift === best.shiftType ? null : best.shiftType;
+            st.shiftDir = st.shift ? best.dir : null;
+            cells = buildCells(st);
+            best = cells.find((c) => c.key === best.key) || best;
+          }
+          best.ch = curRoot(st);
+          best.lab = best.ch; // 乗っている間は結果の文字(じ / し)を表示・確定
+          st.lastSel = best.key;
+          return { char: best.ch, cells, selCell: best, cancel: bd > CANCEL };
+        }
+        // 通常セル: 訪問記録・ルート更新
+        st.visited.add(best.key);
+        if (best.kind === "base")
+          st.rootDir = subOf(best.entry) ? best.key : null;
+        if (best.kind === "center") st.rootDir = null;
+        // 訪問により新たな子bloomが出るので再構築
+        cells = buildCells(st);
+        best = cells.find((c) => c.key === best.key) || best;
+        st.lastSel = best.key;
+        return { char: best.ch, cells, selCell: best, cancel: bd > CANCEL };
+      }
+
+      /* ===== 描画 ===== */
+      const popup = document.getElementById("popup");
+      function addCell(ch, x, y, cls) {
+        const d = document.createElement("div");
+        d.className =
+          "pcell" +
+          (cls ? " " + cls : "") +
+          (Array.from(ch).length >= 2 ? " two" : "");
+        d.textContent = ch;
+        d.style.left = x + "px";
+        d.style.top = y + "px";
+        popup.appendChild(d);
+      }
+      function draw(st, info) {
+        popup.querySelectorAll(".pcell").forEach((e) => e.remove());
+        popup.style.display = "block";
+        for (const c of info.cells) {
+          let cls = "";
+          if (c.kind === "shift") {
+            if (st.shift === c.shiftType && st.shiftDir === c.dir)
+              cls = "shifton";
+            else if (!st.rootDir) cls = "hint"; // ドリル中は普通のセル(背景なし)で文字を出す
+          }
+          if (info.selCell === c) cls = "sel";
+          addCell(c.lab != null ? c.lab : c.ch, c.x, c.y, cls);
+        }
+      }
+
+      /* ===== エンジン ===== */
+      let st = null;
+      function start(keyEl, row, cx, cy) {
+        st = {
+          row,
+          cx,
+          cy,
+          shift: null,
+          shiftDir: null,
+          rootDir: null,
+          visited: new Set(),
+          lastSel: null,
+          info: null,
+          keyEl,
+        };
+        keyEl.classList.add("pressed");
+        const info = compute(st, cx, cy);
+        st.info = info;
+        draw(st, info);
+        pathBar.textContent = info.char;
+      }
+      function move(x, y) {
+        if (!st) return;
+        const info = compute(st, x, y);
+        st.info = info;
+        popup.classList.toggle("cancel", info.cancel);
+        draw(st, info);
+        const tag = st.shift
+          ? { daku: "゛", handaku: "゜", small: "小" }[st.shift] + " "
+          : "";
+        pathBar.textContent = tag + (info.cancel ? "—" : info.char);
+      }
+      function end() {
+        if (!st) return;
+        if (st.info && !st.info.cancel) commit(st.info.char);
+        st.keyEl.classList.remove("pressed");
+        popup.style.display = "none";
+        popup.classList.remove("cancel");
+        st = null;
+        setTimeout(() => {
+          if (!st) pathBar.innerHTML = "&nbsp;";
+        }, 700);
+      }
+      function abort() {
+        if (!st) return;
+        st.keyEl.classList.remove("pressed");
+        popup.style.display = "none";
+        popup.classList.remove("cancel");
+        st = null;
+        pathBar.innerHTML = "&nbsp;";
+      }
+
+      /* ===== 配線 ===== */
+      const kb = document.getElementById("keyboard");
+      kb.addEventListener("pointerdown", (e) => {
+        const k = e.target.closest(".key");
+        if (!k || k.classList.contains("disabled")) return;
+        e.preventDefault();
+        const act = k.dataset.action;
+        if (act) {
+          k.classList.add("pressed");
+          setTimeout(() => k.classList.remove("pressed"), 120);
+          if (act === "bs") backspace();
+          if (act === "space") commit(" ");
+          if (act === "enter") commit("\n");
+          return;
+        }
+        const row = k.dataset.row;
+        if (!row || !ROWS[row]) return;
+        const r = k.getBoundingClientRect();
+        kb.setPointerCapture(e.pointerId);
+        start(k, ROWS[row], r.left + r.width / 2, r.top + r.height / 2);
+      });
+      kb.addEventListener("pointermove", (e) => {
+        if (!st) return;
+        e.preventDefault();
+        move(e.clientX, e.clientY);
+      });
+      kb.addEventListener("pointerup", (e) => {
+        if (!st) return;
+        e.preventDefault();
+        end();
+      });
+      kb.addEventListener("pointercancel", abort);
+      window.addEventListener("blur", abort);
+    </script>
+  </body>
+</html>

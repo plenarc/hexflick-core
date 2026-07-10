@@ -1,0 +1,21 @@
+{
+  "name": "hexflick-core",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Platform-independent 6-direction flick input engine for HEXフリック, plus a browser demo.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p demo/tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7",
+    "vitest": "^3.0.4"
+  }
+}
