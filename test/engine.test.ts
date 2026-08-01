@@ -118,14 +118,45 @@ describe("daku / handaku / small and reverting", () => {
     it("は>ふ>ふぉ(=下HEX位置と同座標)", () => {
         expect(drive("ha", ["dl", "dl.dr"]).char).toBe("ふぉ");
     });
+    it("か>く>ぐ(=下HEX位置と同座標。誤ってが[濁点トグル]にならない)", () => {
+        expect(drive("ka", ["dl", "dl.dr"]).char).toBe("ぐ");
+    });
+    it("さ>す>ず(=下HEX位置と同座標。誤ってざ[濁点トグル]にならない)", () => {
+        expect(drive("sa", ["dl", "dl.dr"]).char).toBe("ず");
+    });
+    it("う訪問後もdシフト(小)がうぉに奪われず機能する", () => {
+        expect(drive("a", ["dl", "sh:d", "c"]).char).toBe("ぁ");
+    });
+    it("か>く: dr未選択の間は濁点ヒント(゛)のまま、ぐを先出ししない", () => {
+        const r = drive("ka", ["dl"]);
+        const sub = r.cells.find((c) => c.key === "dl.dr");
+        expect(sub?.lab).toBe("゛");
+        expect(sub?.ch).toBe("ぐ");
+    });
+    it("か>く>ぐ: 選択した瞬間はシフトHEXと同じく表示もぐになる", () => {
+        expect(drive("ka", ["dl", "dl.dr"]).selCell.lab).toBe("ぐ");
+    });
+    it("さ>す: dr未選択の間は濁点ヒント(゛)のまま、ずを先出ししない", () => {
+        const r = drive("sa", ["dl"]);
+        const sub = r.cells.find((c) => c.key === "dl.dr");
+        expect(sub?.lab).toBe("゛");
+        expect(sub?.ch).toBe("ず");
+    });
+    it("さ>す>ず: 選択した瞬間はシフトHEXと同じく表示もずになる", () => {
+        expect(drive("sa", ["dl", "dl.dr"]).selCell.lab).toBe("ず");
+    });
 });
 
 describe("gairaion / nesting", () => {
+    it("う訪問時点でうぇと同時にうぉも現れる(うぇを経由する必要はない)", () => {
+        const r = drive("a", ["dl"]);
+        expect(r.cells.some((c) => c.key === "dl.d.dr" && c.ch === "うぉ")).toBe(true);
+    });
     it("う>うぉ", () => {
-        expect(drive("a", ["dl", "dl.dr"]).char).toBe("うぉ");
+        expect(drive("a", ["dl", "dl.d", "dl.d.dr"]).char).toBe("うぉ");
     });
     it("う>うぉ>下", () => {
-        expect(drive("a", ["dl", "dl.dr", "dl.dr.d"]).char).toBe("ヴォ");
+        expect(drive("a", ["dl", "dl.d", "dl.d.dr", "dl.d.dr.d"]).char).toBe("ヴォ");
     });
     it("う>うぃ>下", () => {
         expect(drive("a", ["dl", "dl.dl", "dl.dl.d"]).char).toBe("ヴィ");

@@ -67,6 +67,41 @@ interface WorkingCell extends Cell {
     parent?: string;
 }
 
+// Reveals root's sub-tree onto `cells`, recursively, stopping at any node
+// that hasn't been visited yet (root itself must already be visited). A
+// sub key may chain multiple directions (e.g. "d.dr") to place a cell
+// several hops out from `parent` while still revealing it at the same
+// time as parent's other, single-hop children (e.g. uo needs to sit past
+// ue's position without requiring ue itself to be visited first).
+function expandBloom(cells: WorkingCell[], root: WorkingCell, visited: Set<string>): void {
+    const stack: WorkingCell[] = [root];
+    while (stack.length) {
+        const parent = stack.pop()!;
+        const sm = subOf(parent.entry);
+        if (!sm || !visited.has(parent.key)) continue;
+        for (const sd of Object.keys(sm)) {
+            const e = sm[sd]!;
+            // Sub entries are never shift triggers by construction.
+            if (isShift(e)) continue;
+            let p = { x: parent.x, y: parent.y };
+            for (const dir of sd.split(".") as Dir[]) p = pos(p.x, p.y, dir);
+            const key = parent.key + "." + sd;
+            const c: WorkingCell = {
+                key,
+                ch: echar(e),
+                lab: elabel(e),
+                x: p.x,
+                y: p.y,
+                kind: "sub",
+                entry: e,
+                parent: parent.key,
+            };
+            cells.push(c);
+            stack.push(c);
+        }
+    }
+}
+
 function curRoot(st: State): string {
     const layer = layerOf(st);
     if (st.rootDir) {
@@ -140,33 +175,7 @@ function buildCells(st: State): WorkingCell[] {
     // are expanded.
     if (st.rootDir) {
         const root = cells.find((c) => c.key === st.rootDir);
-        if (root && subOf(root.entry)) {
-            const stack: WorkingCell[] = [root];
-            while (stack.length) {
-                const parent = stack.pop()!;
-                const sm = subOf(parent.entry);
-                if (!sm || !st.visited.has(parent.key)) continue;
-                for (const sd of Object.keys(sm) as Dir[]) {
-                    const e = sm[sd]!;
-                    // Sub entries are never shift triggers by construction.
-                    if (isShift(e)) continue;
-                    const p = pos(parent.x, parent.y, sd);
-                    const key = parent.key + "." + sd;
-                    const c: WorkingCell = {
-                        key,
-                        ch: echar(e),
-                        lab: elabel(e),
-                        x: p.x,
-                        y: p.y,
-                        kind: "sub",
-                        entry: e,
-                        parent: parent.key,
-                    };
-                    cells.push(c);
-                    stack.push(c);
-                }
-            }
-        }
+        if (root && subOf(root.entry)) expandBloom(cells, root, st.visited);
     }
 
     // Same-coordinate collisions favor the bloom (e.g. fuo lands on the
@@ -243,6 +252,12 @@ export function compute(
     // Re-expand: visiting may reveal a new bloom.
     cells = buildCells(state);
     best = cells.find((c) => c.key === best!.key) || best;
+    // Hint cells (e.g. a daku shortcut) stay masked behind their hint mark
+    // until actually selected, then reveal their real char — same look as
+    // the shift hex's hover reveal.
+    if (best.entry && typeof best.entry === "object" && "hint" in best.entry && best.entry.hint) {
+        best.lab = best.ch;
+    }
     state.lastSel = best.key;
     return { char: best.ch, cells, selCell: best, cancel: bd > cfg.cancel };
 }
