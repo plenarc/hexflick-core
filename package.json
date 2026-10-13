@@ -1,7 +1,7 @@
 {
   "name": "hexflick-core",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Platform-independent 6-direction flick input engine for HEXフリック, plus a browser demo.",
   "license": "Apache-2.0",

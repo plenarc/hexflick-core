@@ -8,11 +8,19 @@
 
 ## スラッシュコマンド
 
-- `/commit-push` — ステージ済みファイルをコミット&プッシュする。削除ファイルがあれば実行前に確認を取り、`package.json` のバージョンを更新する（スクリプト系ファイル(`.js`/`.mjs`/`.cjs`/`.ts`/`.mts`)の変更を含む場合はminorを+1・patchを0にリセット、それ以外はpatchのみ+1。詳細は `.claude/commands/commit-push.md`）。
-- `/create-issue` — 指示内容をGitHub issueとして追加する（詳細は `.claude/commands/create-issue.md`）。
-- `/start-issue <issue番号>` — issueの内容に沿ってbranchを作成し、編集・ステージまで行う。コミットはしない（詳細は `.claude/commands/start-issue.md`）。
+リポジトリ固有のコマンドは持たず、共通 skill (`~/.claude/skills/`) を使う。各 skill はこのリポジトリの設定を `.claude/workflow.md` から読む。
+
+- `/create-issue` — 指示内容をGitHub issueとして追加する。
+- `/start-issue <issue番号>` — issueの内容に沿ってbranchを作成し、編集・ステージまで行う。バージョンはここで1回だけ上げる。コミットはしない。
+- `/commit-staged` — ステージ済みファイルだけをコミットし、ブランチをpushする。
+- `/create-pr` — 作業ブランチから draft PR を作成する。
+- `/verify-pr` — checks をローカルで実行し、PRのチェックリストを確かめて draft を解除する。
+- `/merged` — PRのMerge後に、ブランチ削除・issueのclose・mainの最新化を行う。
+
+## ブランチ命名規則
+
+`/start-issue` を含め、ブランチ名は `.claude/rules/branch-nabing-rules.md` に従う。
 
 ## 未確定・保留事項（TODO）
 
-- ブランチ命名規則: `/start-issue` は暫定で `issue-<番号>-<slug>` を使う。正式なルールは別途決定する。
 - パッケージマネージャ: npm → bun への移行を予定。移行後は `mise` でbunのバージョンを管理する。移行自体はまだ未着手。
